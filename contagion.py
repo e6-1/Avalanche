@@ -1,7 +1,7 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
-
+# Hello
 class ContagionNetwork:
     def __init__(self, exposure_matrix, capital_ratios, defaults=[]):
         self.exposure_matrix = exposure_matrix
