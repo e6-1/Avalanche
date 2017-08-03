@@ -5,45 +5,56 @@ import numpy as np
 from random import shuffle
 
 
-def make_connections(connectivity_vector, randomize=False):
-    # Get the number of variables
+def binarize_probabilities(mat):
+    num_probs = mat.shape[0] * mat.shape[1]
+    probs = np.random.uniform(size=num_probs).reshape(mat.shape)
+
+    bin_mat = np.zeros_like(mat)
+    for i in xrange(mat.shape[0]):
+        for j in xrange(mat.shape[1]):
+            bin_mat[i, j] = 1 if probs[i, j] < mat[i, j] else 0
+    return bin_mat
+
+
+def distribute_liabilities(adj_matrix, total_liabilities):
+    size = adj_matrix.shape[0]
+    liability_mat = np.zeros_like(adj_matrix)
+    for i, liability in enumerate(total_liabilities):
+        conns = adj_matrix[i, :].sum()
+        if conns == 0:
+            continue
+        avg_liability = liability / conns
+        for j in xrange(size):
+            liability_mat[i, j] = adj_matrix[i, j] * avg_liability
+    return liability_mat
+
+
+def make_connections(connectivity_vector, randomize=False, probabilities=True):
     size = connectivity_vector.shape[0]
-
-    # The matrix variable for the optimization problem
     connections = cvx.Variable(size, size)
-
-    # Minimize the total sum of the connections variable over all i, j
     objective = cvx.Minimize(cvx.sum_entries(connections))
 
-    # Force an identity matrix
     constraints = [connections[i, i] == 1 for i in range(size)]
-
-    # Iterate through and add the following constraint:
-    # sum_j M_{ij} + sum_j M_{ji} >= k_i, for all i
     for i, connection in enumerate(connectivity_vector):
         connection_constraint = cvx.sum_entries(connections[i, :]) + cvx.sum_entries(connections[:, i]) >= connection
         constraints.append(connection_constraint)
 
-    # Constrain each connection to be real-valued, but less than or equal to 1
     for i in range(size):
         for j in range(size):
             lt_one_constraint = connections[i, j] <= 1
             constraints.append(lt_one_constraint)
 
-    # Solve the optimization problem, given the objective and constraints
     problem = cvx.Problem(objective, constraints)
     problem.solve()
 
-    # This last chunk will convert the real-valued matrix from the optimization into a binary matrix
     real_connections = connections.value
+    if probabilities:
+        return real_connections
+    
     adj_mat = np.zeros((size, size))
     inds = range(size)
-
-    # If the randomization flag is set, then randomly select rows to binarize
     if randomize:
         shuffle(inds)
-
-    # Go through, and pick the top `n` connections to be 1s and the rest to be 0s
     for i in inds:
         connection = connectivity_vector[i]
         connection = max(0, int(connection - adj_mat[i, :].sum()))
@@ -51,7 +62,6 @@ def make_connections(connectivity_vector, randomize=False):
         max_connection_inds = max_connection_inds[0, :connection]
         for j in max_connection_inds:
             adj_mat[i, j] = 1
-            adj_mat[j, i] = -1
     return adj_mat
 
 
@@ -71,3 +81,45 @@ class ContagionNetwork:
                     next_defaults.append(institution)
                     break
         self.defaults += next_defaults
+
+        
+class DeterministicNetwork:
+    
+    def __init__(self, size, liabilities=None, recovery_rate=0.0):
+        self.size = size
+        self.liabilities = liabilities if liabilities is not None else np.zeros((size, size))
+        self.recovery_rate = recovery_rate
+
+    def reset_net(self):
+        for i in range(self.size):
+            for j in range(i + 1, self.size):
+                self.liabilities[i, j] = max(self.liabilities[i, j] - self.liabilities[j, i], 0)
+                self.liabilities[j, i] = max(self.liabilities[j, i] - self.liabilities[i, j], 0)
+
+    def default(self, i):
+        self.liabilities[i, i] = 0
+
+    def recover(self, i):
+        for j in range(self.size):
+            if i != j:
+                self.liabilities[j, j] += self.recovery_rate * self.liabilities[j, i]
+                self.liabilities[j, i] = 0
+
+    def step(self):
+        for i in range(self.size):
+            capital = self.liabilities[i, i]
+            assets = self.liabilities[i, :].sum()
+            liabilities = self.liabilities[:, i].sum()
+            net = capital + assets - liabilities
+            print(i, assets, liabilities, capital, net)
+            if net < 0:
+                self.default(i)
+                self.recover(i)
+
+    def show(self):
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.set_aspect('equal')
+        plt.imshow(self.liabilities, interpolation='nearest', cmap=plt.cm.hot)
+        plt.colorbar()
+        plt.show()
