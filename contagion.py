@@ -7,7 +7,7 @@ from random import shuffle
 
 def binarize_probabilities(mat):
     num_probs = mat.shape[0] * mat.shape[1]
-    probs = np.random.uniform(size=num_probs).reshape(mat.shape)
+    probs = np.random.negative_binomial(1, .7, size=num_probs).reshape(mat.shape)
 
     bin_mat = np.zeros_like(mat)
     for i in xrange(mat.shape[0]):
@@ -81,6 +81,94 @@ class ContagionNetwork:
                     next_defaults.append(institution)
                     break
         self.defaults += next_defaults
+
+        
+class DeterministicRatioNetwork:
+    
+    def __init__(self, size, liabilities=None, recovery_rate=0.0, initial_cap=10000):
+        self.size = size
+        self.liabilities = liabilities if liabilities is not None else np.zeros((size, size))
+        self.recovery_rate = recovery_rate
+        self.initial_cap = initial_cap
+
+    def reset_net(self):
+        for i in range(self.size):
+            for j in range(i + 1, self.size):
+                self.liabilities[i, j] = max(self.liabilities[i, j] - self.liabilities[j, i], 0)
+                self.liabilities[j, i] = max(self.liabilities[j, i] - self.liabilities[i, j], 0)
+
+    def default(self, i):
+        self.liabilities[i, i] = 0
+
+    def recover(self, i):
+        for j in range(self.size):
+            if i != j:
+                self.liabilities[j, j] += self.recovery_rate * self.liabilities[j, i]
+                self.liabilities[j, i] = 0
+
+    def step(self):
+        # Select entry to add debt to
+        rand_i = np.random.randint(self.size)
+        rand_j = np.random.randint(self.size)
+        rand_prop = 0.1
+
+        # Add debt
+        capital = self.liabilities[rand_i, rand_i]
+        assets = self.liabilities[rand_i, :].sum() - capital
+        liabilities = self.liabilities[:, rand_i].sum() - capital
+        
+        # TODO: what if we simplify by not growing loan by up to 10% of loan value
+        # but by up to 10% of capital?
+        # Should we subtract from capital when we're issuing another loan?
+        if capital != 0:
+            if self.liabilities[rand_i, rand_j] != 0:
+                self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_j]
+            else:
+                self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_i]
+                self.liabilities[rand_i, rand_i] -= rand_prop * self.liabilities[rand_i, rand_i]
+        else:
+            if rand_i == rand_j:
+                self.liabilities[rand_i, rand_j] = self.initial_cap
+
+        # Settle
+        ratios = np.zeros(self.size)
+        previous_defaults = 0
+        num_defaults = 0
+        while True:  # Cascade until no more defaults
+            for i in range(self.size):
+                capital = self.liabilities[i, i]
+                assets = self.liabilities[i, :].sum()
+                liabilities = self.liabilities[:, i].sum()
+                net = capital + assets - liabilities
+                if net < 0:
+                    self.default(i)
+                    self.recover(i)
+                    num_defaults += 1
+
+                """Ratio cascade
+                capital = self.liabilities[i, i]
+                assets = self.liabilities[i, :].sum() - capital
+                liabilities = self.liabilities[:, i].sum() - capital
+                
+                if liabilities != 0 and capital != 0:
+                    ratios[i] = capital / liabilities
+                    if capital / liabilities < 0.25:
+                        self.default(i)
+                        self.recover(i)
+                        num_defaults += 1
+                """
+            if previous_defaults == num_defaults:
+                break
+            previous_defaults = num_defaults
+        return ratios, num_defaults
+
+    def show(self):
+        fig = plt.figure()
+        ax = fig.add_subplot(1,1,1)
+        ax.set_aspect('equal')
+        plt.imshow(self.liabilities, interpolation='nearest', cmap=plt.cm.hot)
+        plt.colorbar()
+        plt.show()
 
         
 class DeterministicNetwork:
