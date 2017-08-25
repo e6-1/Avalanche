@@ -1,5 +1,5 @@
 import cvxpy as cvx
-import networkx as nx
+# import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 from random import shuffle
@@ -10,8 +10,8 @@ def binarize_probabilities(mat):
     probs = np.random.negative_binomial(1, .7, size=num_probs).reshape(mat.shape)
 
     bin_mat = np.zeros_like(mat)
-    for i in xrange(mat.shape[0]):
-        for j in xrange(mat.shape[1]):
+    for i in range(mat.shape[0]):
+        for j in range(mat.shape[1]):
             bin_mat[i, j] = 1 if probs[i, j] < mat[i, j] else 0
     return bin_mat
 
@@ -24,7 +24,7 @@ def distribute_liabilities(adj_matrix, total_liabilities):
         if conns == 0:
             continue
         avg_liability = liability / conns
-        for j in xrange(size):
+        for j in range(size):
             liability_mat[i, j] = adj_matrix[i, j] * avg_liability
     return liability_mat
 
@@ -121,11 +121,8 @@ class DeterministicRatioNetwork:
         # but by up to 10% of capital?
         # Should we subtract from capital when we're issuing another loan?
         if capital != 0:
-            if self.liabilities[rand_i, rand_j] != 0:
-                self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_j]
-            else:
-                self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_i]
-                self.liabilities[rand_i, rand_i] -= rand_prop * self.liabilities[rand_i, rand_i]
+            self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_i]
+            self.liabilities[rand_i, rand_i] -= rand_prop * self.liabilities[rand_i, rand_i]
         else:
             if rand_i == rand_j:
                 self.liabilities[rand_i, rand_j] = self.initial_cap
@@ -136,6 +133,7 @@ class DeterministicRatioNetwork:
         num_defaults = 0
         while True:  # Cascade until no more defaults
             for i in range(self.size):
+                # """
                 capital = self.liabilities[i, i]
                 assets = self.liabilities[i, :].sum()
                 liabilities = self.liabilities[:, i].sum()
@@ -144,7 +142,7 @@ class DeterministicRatioNetwork:
                     self.default(i)
                     self.recover(i)
                     num_defaults += 1
-
+                # """
                 """Ratio cascade
                 capital = self.liabilities[i, i]
                 assets = self.liabilities[i, :].sum() - capital
@@ -152,7 +150,7 @@ class DeterministicRatioNetwork:
                 
                 if liabilities != 0 and capital != 0:
                     ratios[i] = capital / liabilities
-                    if capital / liabilities < 0.25:
+                    if capital / liabilities < 0.08:
                         self.default(i)
                         self.recover(i)
                         num_defaults += 1
