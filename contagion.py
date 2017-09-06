@@ -6,9 +6,22 @@ from random import shuffle
 
 
 def binarize_probabilities(mat):
+    """Turns a matrix of probabilities into a binary matrix.
+
+    Args:
+        mat (numpy ndarray): Probability matrix.
+
+    Returns:
+        A matrix of 1's and 0's.
+    """
+    # Total number of probabilities
     num_probs = mat.shape[0] * mat.shape[1]
+
+    # Another probability matrix is generated and to determine 1 or 0 we...
     probs = np.random.negative_binomial(1, .7, size=num_probs).reshape(mat.shape)
 
+    # ... compare the generated probability against the given probability matrix
+    # if it is less than, then the entry is a 1 otherwise it is a 0
     bin_mat = np.zeros_like(mat)
     for i in range(mat.shape[0]):
         for j in range(mat.shape[1]):
@@ -17,8 +30,20 @@ def binarize_probabilities(mat):
 
 
 def distribute_liabilities(adj_matrix, total_liabilities):
+    """Distributes cumulative liabilities across a matrix.
+
+    Args:
+        adj_matrix (numpy ndarray): Adjacency matrix.
+        total_liabilities (numpy array): The total liability for each entity.
+
+    Returns:
+        A matrix with liabilities equally spread across the adjacency matrix's connections.
+    """
+    # Create the liability matrix
     size = adj_matrix.shape[0]
     liability_mat = np.zeros_like(adj_matrix)
+
+    # Spread total liability equally among connections.
     for i, liability in enumerate(total_liabilities):
         conns = adj_matrix[i, :].sum()
         if conns == 0:
@@ -29,7 +54,15 @@ def distribute_liabilities(adj_matrix, total_liabilities):
     return liability_mat
 
 
-def make_connections(connectivity_vector, randomize=False, probabilities=True):
+def make_connections(connectivity_vector):
+    """Generates a probability matrix from the given connectivity vector.
+
+    Args:
+        connectivity_vector (numpy array): Vector of connections for each node.
+
+    Returns:
+        A probability matrix where each i,j entry is the probability that i and j are connected.
+    """
     size = connectivity_vector.shape[0]
     connections = cvx.Variable(size, size)
     objective = cvx.Minimize(cvx.sum_entries(connections))
@@ -48,21 +81,7 @@ def make_connections(connectivity_vector, randomize=False, probabilities=True):
     problem.solve()
 
     real_connections = connections.value
-    if probabilities:
-        return real_connections
-    
-    adj_mat = np.zeros((size, size))
-    inds = range(size)
-    if randomize:
-        shuffle(inds)
-    for i in inds:
-        connection = connectivity_vector[i]
-        connection = max(0, int(connection - adj_mat[i, :].sum()))
-        max_connection_inds = real_connections[i].argsort()[::-1]
-        max_connection_inds = max_connection_inds[0, :connection]
-        for j in max_connection_inds:
-            adj_mat[i, j] = 1
-    return adj_mat
+    return real_connections
 
 
 class ContagionNetwork:
