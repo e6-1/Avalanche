@@ -1,3 +1,4 @@
+import json
 from tqdm import tqdm
 import numpy as np
 import cvxpy as cvx
@@ -26,7 +27,7 @@ for k in range(30):
 
     defaults_to_freq = {}
 
-    for z in tqdm(range(100000)):
+    for z in tqdm(range(1000000)):
         model = TestNetwork(100, mat)
         model.reset_net()
 
@@ -35,5 +36,5 @@ for k in range(30):
             defaults_to_freq[defaults] += 1
         else:
             defaults_to_freq[defaults] = 1
-    print("Trial {0}-----------------------------------------".format(k))
-    print(defaults_to_freq)
+    with open('result_{0}.json'.format(k), 'w') as fp:
+        json.dump(defaults_to_freq, fp)

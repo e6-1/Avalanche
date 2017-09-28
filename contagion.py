@@ -1,6 +1,6 @@
 import cvxpy as cvx
 # import networkx as nx
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 from random import shuffle
 
@@ -231,28 +231,42 @@ class TestNetwork:
                 self.liabilities[rand_i, rand_j] = self.initial_cap
 
         # Settle
+        results = {}
         ratios = np.zeros(self.size)
         previous_defaults = 0
         num_defaults = 0
         defaulted_banks = []
         for i in range(self.size):
+            #capital = self.liabilities[i, i]
+            #assets = self.liabilities[i, :].sum() - capital
+            #liabilities = self.liabilities[:, i].sum() - capital
+            
             capital = self.liabilities[i, i]
-            assets = self.liabilities[i, :].sum() - capital
-            liabilities = self.liabilities[:, i].sum() - capital
+            assets = self.liabilities[i, :].sum()
+            liabilities = self.liabilities[:, i].sum()
+            net = capital + assets - liabilities
+            if net < 0:
+                defaulted_banks.append(i)
+                num_defaults += 1
+            
 
-            if liabilities != 0 and capital != 0:
-                ratios[i] = capital / liabilities
-                if capital / liabilities < 0.1:
-                    defaulted_banks.append(i)
-                    num_defaults += 1
+            #if liabilities != 0 and capital != 0:
+            #    ratios[i] = capital / liabilities
+            #    if capital / liabilities < 0.1:
+            #        defaulted_banks.append(i)
+            #        num_defaults += 1
+        results['ratios'] = ratios
+        results['ratio_defaults'] = num_defaults
+        previous_default = 0
+        num_defaults = 0
         while True:  # Cascade until no more defaults
             for i in range(self.size):
                 if i in defaulted_banks: continue
                 capital = self.liabilities[i, i]
-                
+                exposures = 0
                 for defaulted_bank in defaulted_banks:
-                    exposure = self.liabilities[i, defaulted_bank]
-                    if capital < exposure:
+                    exposures += self.liabilities[i, defaulted_bank]
+                    if capital < exposures:
                         defaulted_banks.append(i)
                         num_defaults += 1
                         break
@@ -262,7 +276,8 @@ class TestNetwork:
         for default in defaulted_banks:
             self.liabilities[:, default] = 0
             self.liabilities[default, :] = 0
-        return ratios, num_defaults
+        results['cascade_defaults'] = num_defaults
+        return results
 
     def show(self):
         fig = plt.figure()
