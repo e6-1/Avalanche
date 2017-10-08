@@ -1,3 +1,5 @@
+"""This script will run the avalanche model and save the size-to-frequency as a JSON file where the key is the cascade size and value is the number of occurences."""
+
 import json
 from tqdm import tqdm
 import numpy as np
