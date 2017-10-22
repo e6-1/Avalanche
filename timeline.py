@@ -7,7 +7,7 @@ import numpy as np
 import cvxpy as cvx
 from contagion import binarize_probabilities, distribute_liabilities, make_connections, DeterministicRatioNetwork, TestNetwork
 
-
+steps = 1000000
 cash_vector = np.random.normal(10000, 10000, 100)
 cash_vector[cash_vector <= 0] = 1*10**-10
 # cash_vector[cash_vector > 5000] = 6500
@@ -26,8 +26,8 @@ liabilities = np.multiply(cash_vector, leverage_ratios)
 mat = distribute_liabilities(mat, liabilities)
 for i, cash in enumerate(cash_vector):
     mat[i, i] = cash
-defaults = np.zeros((1000000, 2))
-for z in tqdm(range(1000000)):
+defaults = np.zeros((steps, 2))
+for z in tqdm(range(steps)):
     model = TestNetwork(100, mat)
     model.reset_net()
 
