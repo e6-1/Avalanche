@@ -195,7 +195,7 @@ class DeterministicRatioNetwork:
         
 class TestNetwork:
     
-    def __init__(self, size, liabilities=None, liability_ratio_mean=12, liability_ratio_sd=2, recovery_rate=0.0, initial_cap=10000, max_cap=10000):
+    def __init__(self, size, liabilities=None, liability_ratio_mean=12, liability_ratio_sd=2, recovery_rate=0.0, initial_cap=10000, max_cap=10000, sampling_rate=0.2):
         self.size = size
         self.liabilities = liabilities if liabilities is not None else np.zeros((size, size))
         self.max_cap = max([self.liabilities[i, i] for i in range(size)])
@@ -204,6 +204,7 @@ class TestNetwork:
         self.liability_ratio_mean = liability_ratio_mean
         self.liability_ratio_sd = liability_ratio_sd
         self.standing_banks = sum([1 if self.liabilities[i, i] > 0 else 0 for i in range(size)])
+        self.sampling_rate = sampling_rate
 
     def reset_net(self):
         for i in range(self.size):
@@ -269,7 +270,7 @@ class TestNetwork:
         num_defaults = 0
         defaulted_banks = []
         rand_inds_to_check = np.random.choice(range(self.size), 1, replace=False)
-        rand_inds_to_check = rand_inds_to_check[: int(0.3 * self.size)]
+        rand_inds_to_check = rand_inds_to_check[: int(self.sampling_rate * self.size)]
         num_should_default = 0
         for i in range(self.size):
             capital = self.liabilities[i, i]
