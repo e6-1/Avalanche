@@ -1,3 +1,6 @@
+# Example:
+# > python json_to_csv.py NormalDistResults/
+
 import os, json
 import pandas as pd
 import numpy as np
