@@ -1,5 +1,6 @@
 """This script will run the avalanche model and save the size-to-frequency as a JSON file where the key is the cascade size and value is the number of occurences."""
 
+from pprint import pprint
 import json
 from tqdm import tqdm
 import numpy as np
@@ -7,7 +8,7 @@ import cvxpy as cvx
 from contagion import binarize_probabilities, distribute_liabilities, make_connections, DeterministicRatioNetwork, TestNetwork
 
 
-for k in range(30):
+for k in range(10):
     cash_vector = np.random.normal(10000, 10000, 100)
     cash_vector[cash_vector <= 0] = 1*10**-10
     # cash_vector[cash_vector > 5000] = 6500
@@ -16,7 +17,7 @@ for k in range(30):
 
     # Make the adjacency matrix
     mat = make_connections(connectivity_vector)
-    mat = binarize_probabilities(mat)
+    mat = binarize_probabilities(mat, cash_vector)
 
     # Distribute liabilities
     leverage_ratios = np.random.normal(10, 2, 100)
@@ -29,15 +30,17 @@ for k in range(30):
 
     defaults_to_freq = {}
 
-    for z in tqdm(range(1000000)):
+    for z in tqdm(range(100000)):
         model = TestNetwork(100, mat)
         model.reset_net()
 
         step_result = model.step()
         defaults = step_result['cascade_defaults'] + step_result['ratio_defaults']
+        # print(defaults)
         if defaults in defaults_to_freq:
             defaults_to_freq[defaults] += 1
         else:
             defaults_to_freq[defaults] = 1
+        # pprint(defaults)
     with open('result_{0}.json'.format(k), 'w') as fp:
         json.dump(defaults_to_freq, fp)

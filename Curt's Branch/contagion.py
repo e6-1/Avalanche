@@ -5,7 +5,7 @@ import numpy as np
 from random import shuffle
 
 
-def binarize_probabilities(mat, cash_vector=10000):
+def binarize_probabilities(mat):
     """Turns a matrix of probabilities into a binary matrix.
 
     Args:
@@ -20,10 +20,6 @@ def binarize_probabilities(mat, cash_vector=10000):
     # Another probability matrix is generated and to determine 1 or 0 we...
     # probs = np.random.negative_binomial(1, .7, size=num_probs).reshape(mat.shape)
     probs = np.random.uniform(size=num_probs).reshape(mat.shape)
-    # probs = np.zeros_like(mat)
-    # for (i, capital) in enumerate(cash_vector):
-    #     num = capital / 1000000.0
-    #     probs[i, :] = np.random.power(a=num, size=mat.shape[0])
 
     # ... compare the generated probability against the given probability matrix
     # if it is less than, then the entry is a 1 otherwise it is a 0
@@ -195,15 +191,11 @@ class DeterministicRatioNetwork:
         
 class TestNetwork:
     
-    def __init__(self, size, liabilities=None, liability_ratio_mean=12, liability_ratio_sd=2, recovery_rate=0.0, initial_cap=10000, max_cap=10000):
+    def __init__(self, size, liabilities=None, recovery_rate=0.0, initial_cap=10000):
         self.size = size
         self.liabilities = liabilities if liabilities is not None else np.zeros((size, size))
-        self.max_cap = max([self.liabilities[i, i] for i in range(size)])
         self.recovery_rate = recovery_rate
         self.initial_cap = initial_cap
-        self.liability_ratio_mean = liability_ratio_mean
-        self.liability_ratio_sd = liability_ratio_sd
-        self.standing_banks = sum([1 if self.liabilities[i, i] > 0 else 0 for i in range(size)])
 
     def reset_net(self):
         for i in range(self.size):
@@ -221,46 +213,22 @@ class TestNetwork:
                 self.liabilities[j, i] = 0
 
     def step(self):
-        # mask = np.ones(self.liabilities.shape, dtype=bool)
-        # np.fill_diagonal(mask, 1)
-        # print("Total capital: {0}".format(self.liabilities[mask].sum()))
-        # print("Number banks: {0}".format(self.standing_banks))
-        # max_ind = np.unravel_index(self.liabilities[mask].argmax(), self.liabilities.shape)
-        # max_val = self.liabilities[mask].max()
-        # print(max_val)
-        # print("Cash for i: {0} Cash for j: {1} Asset for i {2} Liability for j {3}".format(
-        #     self.liabilities[max_ind[0], max_ind[0]],
-        #     self.liabilities[max_ind[1], max_ind[1]],
-        #     self.liabilities[max_ind[0], max_ind[1]],
-        #     self.liabilities[max_ind[1], max_ind[0]]
-        # ))
         # Select entry to add debt to
         rand_i = np.random.randint(self.size)
         rand_j = np.random.randint(self.size)
+        rand_prop = 0.1
+
         # Add debt
         capital = self.liabilities[rand_i, rand_i]
         assets = self.liabilities[rand_i, :].sum() - capital
         liabilities = self.liabilities[:, rand_i].sum() - capital
-        # print(capital, rand_i)
-        if not np.isclose(capital, 0):
-            num = max((1 - capital / self.max_cap), 0.2)
-            rand_prop = np.random.power(a=num, size=1)[0]
-            # print(num, rand_prop)
-            while True:
-                if self.standing_banks <= 1:
-                    break
-                if np.isclose(self.liabilities[rand_j, rand_j], 0):
-                    rand_j = np.random.randint(self.size)
-                else:
-                    break
+
+        if capital != 0:
             self.liabilities[rand_i, rand_j] += rand_prop * self.liabilities[rand_i, rand_i]
             self.liabilities[rand_i, rand_i] -= rand_prop * self.liabilities[rand_i, rand_i]
         else:
-            # if np.isclose(rand_i, rand_j):
-            #     self.liabilities[rand_i, rand_j] = self.initial_cap
-            #     self.standing_banks += 1
-            self.liabilities[rand_i, rand_i] = self.initial_cap
-            self.standing_banks += 1
+            if rand_i == rand_j:
+                self.liabilities[rand_i, rand_j] = self.initial_cap
 
         # Settle
         results = {}
@@ -268,27 +236,32 @@ class TestNetwork:
         previous_defaults = 0
         num_defaults = 0
         defaulted_banks = []
-        rand_inds_to_check = np.random.choice(range(self.size), 1, replace=False)
-        rand_inds_to_check = rand_inds_to_check[: int(0.3 * self.size)]
-        num_should_default = 0
         for i in range(self.size):
+            #capital = self.liabilities[i, i]
+            #assets = self.liabilities[i, :].sum() - capital
+            #liabilities = self.liabilities[:, i].sum() - capital
+            
             capital = self.liabilities[i, i]
-            assets = self.liabilities[i, :].sum() - capital
-            liabilities = self.liabilities[:, i].sum() - capital
+            assets = self.liabilities[i, :].sum()
+            liabilities = self.liabilities[:, i].sum()
             net = capital + assets - liabilities
             if net < 0:
-                num_should_default += 1
-                if i in rand_inds_to_check:
-                    defaulted_banks.append(i)
-                    num_defaults += 1
+                defaulted_banks.append(i)
+                num_defaults += 1
+            
+
+            #if liabilities != 0 and capital != 0:
+            #    ratios[i] = capital / liabilities
+            #    if capital / liabilities < 0.1:
+            #        defaulted_banks.append(i)
+            #        num_defaults += 1
         results['ratios'] = ratios
         results['ratio_defaults'] = num_defaults
         previous_default = 0
         num_defaults = 0
         while True:  # Cascade until no more defaults
             for i in range(self.size):
-                if i in defaulted_banks:
-                    continue
+                if i in defaulted_banks: continue
                 capital = self.liabilities[i, i]
                 exposures = 0
                 for defaulted_bank in defaulted_banks:
@@ -296,7 +269,6 @@ class TestNetwork:
                     if capital < exposures:
                         defaulted_banks.append(i)
                         num_defaults += 1
-                        num_should_default += 1
                         break
             if previous_defaults == num_defaults:
                 break
@@ -305,11 +277,6 @@ class TestNetwork:
             self.liabilities[:, default] = 0
             self.liabilities[default, :] = 0
         results['cascade_defaults'] = num_defaults
-        self.standing_banks -= (results['ratio_defaults'] + results['cascade_defaults'])
-        # print("Number standing: {0} Number defaults (actual): {1} Number defaults (perfect): {2}".format(
-        #     self.standing_banks,
-        #     (results['ratio_defaults'] + results['cascade_defaults']),
-        #     num_should_default))
         return results
 
     def show(self):
